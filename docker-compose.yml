@@ -1,0 +1,65 @@
+version: "3.8"
+
+networks:
+  zero-trust-net:
+    driver: bridge
+
+services:
+  #NODE 1: IDENTITY PROVIDER (KEYCLOAK)
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0.1
+    container_name: zt_keycloak
+    command: start-dev
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+      # Cho phép truy cập qua localhost
+      - KC_HOSTNAME_STRICT=false
+      - KC_HOSTNAME=localhost
+      - KC_HTTP_ENABLED=true
+      - KC_FEATURES=dpop
+    ports:
+      - "8080:8080"
+    networks:
+      - zero-trust-net
+
+  # NODE 2: API GATEWAY (KONG - DB LESS MODE)
+  kong:
+    image: kong:3.6
+    container_name: zt_kong
+    environment:
+      - KONG_UNTRUSTED_LUA=on
+      - KONG_DATABASE=off
+      - KONG_DECLARATIVE_CONFIG=/usr/local/kong/declarative/kong.yml
+      - KONG_PROXY_ACCESS_LOG=/dev/stdout
+      - KONG_ADMIN_ACCESS_LOG=/dev/stdout
+      - KONG_PROXY_LISTEN=0.0.0.0:8000
+      - KONG_ADMIN_LISTEN=0.0.0.0:8001
+    volumes:
+      - ./kong/kong.yml:/usr/local/kong/declarative/kong.yml
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    networks:
+      - zero-trust-net
+    depends_on:
+      - server
+
+  # NODE 3: BACKEND API (EXPRESS JS)
+  server:
+    build: ./server
+    container_name: zt_server
+    environment:
+      - PORT=3000
+      - KEYCLOAK_URL=http://keycloak:8080
+    networks:
+      - zero-trust-net
+
+  # NODE 4: CLIENT (REACT JS)
+  client:
+    build: ./client
+    container_name: zt_client
+    ports:
+      - "3000:5173"
+    networks:
+      - zero-trust-net

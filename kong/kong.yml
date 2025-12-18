@@ -1,0 +1,132 @@
+_format_version: "3.0"
+
+services:
+  - name: express-backend
+    url: http://server:3000
+    routes:
+      - name: protected-api
+        paths:
+          - /api
+        strip_path: false
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+            - OPTIONS
+          headers:
+            - Accept
+            - Authorization
+            - DPoP
+            - Content-Type
+            - Origin
+            - X-Requested-With
+          exposed_headers:
+            - Authorization
+            - DPoP
+          credentials: true
+          max_age: 3600
+          preflight_continue: false
+
+      # ---------------------------------------------------------
+      # PLUGIN KIỂM TRA ZERO TRUST (STRICT MODE)
+      # ---------------------------------------------------------
+      - name: pre-function
+        config:
+          access:
+            - |
+              -- 1. KHAI BÁO MODULES
+              local cjson = require "cjson"
+              local ngx_decode_base64 = ngx.decode_base64
+
+              -- Hàm giải mã Base64URL
+              local function decode_base64url(input)
+                  if not input then return nil end
+                  local remainder = #input % 4
+                  if remainder > 0 then
+                      local padlen = 4 - remainder
+                      input = input .. string.rep("=", padlen)
+                  end
+                  input = input:gsub("-", "+"):gsub("_", "/")
+                  return ngx_decode_base64(input)
+              end
+
+              -- 2. BỎ QUA PREFLIGHT REQUEST (OPTIONS)
+              -- Để CORS plugin xử lý trước, tránh chặn trình duyệt
+              local method = kong.request.get_method()
+              if method == "OPTIONS" then
+                  return 
+              end
+
+              -- 3. LẤY HEADER
+              local auth_header = kong.request.get_header("Authorization")
+              local dpop_header = kong.request.get_header("DPoP")
+
+              -- Kiểm tra Authorization header tồn tại
+              if not auth_header then
+                return kong.response.exit(401, { 
+                  message = "Zero Trust Violation: Missing Authorization Header" 
+                })
+              end
+
+              -- 4. TÁCH TOKEN
+              local token_str = string.match(auth_header, "Bearer%s+(.+)")
+              if not token_str then
+                  return kong.response.exit(401, { 
+                    message = "Zero Trust Violation: Invalid Token Format" 
+                  })
+              end
+
+              -- 5. GIẢI MÃ JWT (Payload là phần thứ 2)
+              local segments = {}
+              for seg in string.gmatch(token_str, "([^.]+)") do
+                table.insert(segments, seg)
+              end
+
+              if #segments < 3 then
+                return kong.response.exit(401, { 
+                  message = "Zero Trust Violation: Invalid JWT structure" 
+                })
+              end
+
+              local payload_str = decode_base64url(segments[2])
+              if not payload_str then
+                  return kong.response.exit(400, { 
+                    message = "Zero Trust Violation: Cannot decode JWT Payload" 
+                  })
+              end
+
+              local ok, payload = pcall(cjson.decode, payload_str)
+              if not ok or not payload then
+                  return kong.response.exit(400, { 
+                    message = "Zero Trust Violation: Invalid JWT Payload JSON" 
+                  })
+              end
+
+              -- 6. THỰC THI CHÍNH SÁCH ZERO TRUST (STRICT MODE)
+              
+              -- A. Kiểm tra Token có liên kết DPoP không (claim 'cnf')
+              -- Nếu token không có 'cnf', tức là token truyền thống -> CHẶN
+              if not payload.cnf or not payload.cnf.jkt then
+                 return kong.response.exit(403, { 
+                    error = "access_denied",
+                    message = "Zero Trust Violation: Token is not DPoP bound (Missing 'cnf' claim). Please login with DPoP support." 
+                 })
+              end
+
+              -- B. Kiểm tra Request có gửi kèm DPoP Header không
+              if not dpop_header then
+                  return kong.response.exit(401, { 
+                    error = "missing_dpop_header",
+                    message = "Zero Trust Violation: Missing DPoP Header in request" 
+                  })
+              end
+
+              -- Nếu chạy đến đây tức là đã Hợp lệ (có cnf trong token và có header gửi lên)
+              kong.log.info("[SUCCESS] Zero Trust Check Passed for JKT: ", payload.cnf.jkt)

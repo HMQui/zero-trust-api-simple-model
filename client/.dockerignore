@@ -1,0 +1,9 @@
+# Bỏ qua thư viện node (sẽ được cài trong container)
+node_modules
+
+# Bỏ qua thư mục build (sẽ được tạo trong container)
+build
+
+# Bỏ qua các file khác
+.env
+.git
