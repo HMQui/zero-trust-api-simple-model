@@ -114,10 +114,10 @@ services:
               -- A. Kiểm tra Token có liên kết DPoP không (claim 'cnf')
               -- Nếu token không có 'cnf', tức là token truyền thống -> CHẶN
               if not payload.cnf or not payload.cnf.jkt then
-                 return kong.response.exit(403, { 
+                  return kong.response.exit(403, { 
                     error = "access_denied",
                     message = "Zero Trust Violation: Token is not DPoP bound (Missing 'cnf' claim). Please login with DPoP support." 
-                 })
+                  })
               end
 
               -- B. Kiểm tra Request có gửi kèm DPoP Header không
@@ -128,5 +128,4 @@ services:
                   })
               end
 
-              -- Nếu chạy đến đây tức là đã Hợp lệ (có cnf trong token và có header gửi lên)
               kong.log.info("[SUCCESS] Zero Trust Check Passed for JKT: ", payload.cnf.jkt)

@@ -9,17 +9,22 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:24.0.1
     container_name: zt_keycloak
-    command: start-dev
+    command: start-dev --features=dpop
     environment:
       - KEYCLOAK_ADMIN=admin
       - KEYCLOAK_ADMIN_PASSWORD=admin
-      # Cho phép truy cập qua localhost
-      - KC_HOSTNAME_STRICT=false
+      # Cấu hình HTTPS
+      - KC_HTTPS_CERTIFICATE_FILE=/opt/keycloak/conf/cert.pem
+      - KC_HTTPS_CERTIFICATE_KEY_FILE=/opt/keycloak/conf/key.pem
       - KC_HOSTNAME=localhost
-      - KC_HTTP_ENABLED=true
-      - KC_FEATURES=dpop
+      - KC_HOSTNAME_PORT=9443 
+    volumes:
+      # Mount thư mục certs vào trong container
+      - ./certs/cert.pem:/opt/keycloak/conf/cert.pem
+      - ./certs/key.pem:/opt/keycloak/conf/key.pem
     ports:
-      - "8080:8080"
+      # Map port 9443 của máy thật vào 8443 (port https mặc định của Keycloak container)
+      - "9443:8443" 
     networks:
       - zero-trust-net
 
@@ -33,12 +38,23 @@ services:
       - KONG_DECLARATIVE_CONFIG=/usr/local/kong/declarative/kong.yml
       - KONG_PROXY_ACCESS_LOG=/dev/stdout
       - KONG_ADMIN_ACCESS_LOG=/dev/stdout
-      - KONG_PROXY_LISTEN=0.0.0.0:8000
+      
+      # 1. Cấu hình để Kong lắng nghe cả HTTP (8000) và HTTPS (8443)
+      - KONG_PROXY_LISTEN=0.0.0.0:8000, 0.0.0.0:8443 ssl
       - KONG_ADMIN_LISTEN=0.0.0.0:8001
+
+      # 2. Chỉ định đường dẫn chứng chỉ SSL (Path trong container)
+      - KONG_SSL_CERT=/usr/local/kong/ssl/cert.pem
+      - KONG_SSL_CERT_KEY=/usr/local/kong/ssl/key.pem
+    
     volumes:
       - ./kong/kong.yml:/usr/local/kong/declarative/kong.yml
+      # 3. Mount thư mục certs từ máy thật vào container
+      - ./certs:/usr/local/kong/ssl
+    
     ports:
       - "8000:8000"
+      - "8443:8443"
       - "8001:8001"
     networks:
       - zero-trust-net

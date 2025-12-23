@@ -34,7 +34,7 @@ function App() {
   };
 
   if (window.location.pathname === "/callback") {
-    userManager.signinRedirectCallback().then((user) => {
+    userManager.signinRedirectCallback().then(() => {
       window.location.href = "/";
     });
     return <p>Đang đăng nhập...</p>;

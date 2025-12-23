@@ -2,12 +2,12 @@ import { UserManager, WebStorageStateStore } from 'oidc-client-ts';
 import { IndexedDbDPoPStore } from 'oidc-client-ts'; 
 
 const oidcConfig = {
-    authority: 'http://localhost:8080/realms/zero-trust',
+    authority: 'https://localhost:9443/realms/zero-trust',
     client_id: 'react-client',
-    redirect_uri: 'http://localhost:3000/callback',
+    redirect_uri: 'https://localhost:3000/callback',
     response_type: 'code',
     scope: 'openid profile email',
-    post_logout_redirect_uri: 'http://localhost:3000/',
+    post_logout_redirect_uri: 'https://localhost:3000/',
     dpop: {
         enabled: true,
         signingKeyAlgorithm: 'ES256',
