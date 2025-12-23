@@ -8,23 +8,6 @@ Hệ thống triển khai mô hình **Gateway Offloading**, trong đó API Gatew
 
 Hệ thống hoạt động theo luồng: **Client** -> **API Gateway (PEP)** -> **Resource (Backend)**.
 
-```mermaid
-graph LR
-    subgraph Trusted_Device [Client - ReactJS]
-        C[Client App] -- HTTPS + DPoP Sig --> G
-    end
-
-    subgraph Security_Infrastructure [Zero Trust Zone]
-        G[Kong Gateway (PEP)] -- Forward Request --> B[Backend API]
-        I[Keycloak (PDP)] -. Issue DPoP Token .- C
-    end
-
-    style C fill:#d4f1f9,stroke:#333,stroke-width:2px
-    style G fill:#ffccbc,stroke:#333,stroke-width:2px
-    style B fill:#c8e6c9,stroke:#333,stroke-width:2px
-    style I fill:#fff9c4,stroke:#333,stroke-width:2px
-```
-
 ### Các thành phần chính:
 
 1.  **Client (ReactJS):**
